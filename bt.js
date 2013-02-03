@@ -234,7 +234,7 @@
     __offset_undefined: { value: 0 },
 
     size: { get: function() {
-      return (this['__offset_' + this.__last] + this['__size_' + this.__last])
+      return this['__offset_' + this.__last] + (this['__size_' + this.__last] || 0)
     }},
 
     valueOf: { value: function() {
