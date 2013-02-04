@@ -504,7 +504,7 @@
     })
   }
 
-  for (var i = 0; i < 1000; i++) defineDummyAccessor(List.prototype, i)
+  for (var i = 0; i < 2000; i++) defineDummyAccessor(List.prototype, i)
 
   List.extend = function(options) {
     // Default until function: go as far as possible
