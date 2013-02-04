@@ -336,10 +336,7 @@
 
     Object.defineProperty(object, name, {
       get: function() {
-        var len = this[size] * 8
-        if (!len || len > 32) return new View(this, this[offset])
-
-        var value = this['getUint' + len](this[offset], this[little_endian])
+        var value = this['getUint' + (this[size] * 8)](this[offset], this[little_endian])
         value = (value in domain) ? domain[value] : value
 
         var error = desc.assert && desc.assert.call(this, value)
@@ -349,15 +346,12 @@
       },
 
       set: function(value) {
-        var len = this[size] * 8
-        if (len > 32) return
-
         if (value in reverse_domain) value = reverse_domain[value]
 
         var error = desc.assert && desc.assert.call(this, value)
         if (error) throw new Error('Assertion Error: ' + this.protocol + '.' + name + ' ' + error)
 
-        this['setUint' + len](this[offset], value, this[little_endian])
+        this['setUint' + (this[size] * 8)](this[offset], value, this[little_endian])
       },
 
       enumerable: true
