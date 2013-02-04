@@ -146,6 +146,8 @@
   }
 
   function View(parent, offset) {
+    if (typeof parent === 'number') parent = (typeof Buffer === 'undefined') ? new DataView(new ArrayBuffer(parent))
+                                                                             : new Buffer(parent)
     if (parent) Object.defineProperty(this, 'parent', { value: parent })
     Object.defineProperty(this, 'offset', { value: offset || 0 })
   }
