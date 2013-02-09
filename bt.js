@@ -297,13 +297,14 @@
       , reverse_domain = {}
     for (var n in domain) reverse_domain[domain[n]] = Number(n)
 
+    var assertion = desc.assert
+
     Object.defineProperty(object, name, {
       get: function() {
         var value = this.getUint(this[size] * 8, this[offset], this[little_endian])
         value = (value in domain) ? domain[value] : value
 
-        var error = desc.assert && desc.assert.call(this, value)
-        if (error) throw new Error('Assertion Error: ' + this.protocol + '.' + name + ' ' + error)
+        if (assertion) assertion.call(this, value)
 
         return value
       },
@@ -311,8 +312,7 @@
       set: function(value) {
         if (value in reverse_domain) value = reverse_domain[value]
 
-        var error = desc.assert && desc.assert.call(this, value)
-        if (error) throw new Error('Assertion Error: ' + this.protocol + '.' + name + ' ' + error)
+        if (assertion) assertion.call(this, value)
 
         this.setUint(this[size] * 8, this[offset], value, this[little_endian])
       },
