@@ -132,20 +132,6 @@
       return this.offset + (this.parent.root_offset || 0)
     }},
 
-    freeze: { value: function() {
-      // Getters -> values
-      Object.defineProperties(this, {
-        root       : { value: this.root        },
-        root_offset: { value: this.root_offset }
-      })
-    }},
-
-    unfreeze: { value: function() {
-      // Values -> getters
-      delete this.root
-      delete this.root_offset
-    }},
-
     parent: {
       get: function() { throw new ReferenceError('No parent defined.') },
       set: function() { throw new ReferenceError('No parent defined.') }
