@@ -92,8 +92,6 @@
 
 
 
-  var tempView = new DataView(new ArrayBuffer(4))
-
   if (typeof Buffer !== 'undefined') Object.defineProperties(Buffer.prototype, {
     getUint8 : { value: Buffer.prototype.readUInt8 },
     getUint16: { value: function(offset, littleEndian) {
@@ -114,43 +112,16 @@
     } }
   })
 
-  function copy(target, targetBitOffset, bitLength, source, sourceBitOffset) {
-    var sourceByteOffset = Math.floor(sourceBitOffset / 8)
-      , sourceBeginPadding = sourceBitOffset % 8
-      , sourceByteLength = Math.ceil((sourceBeginPadding + bitLength) / 8)
-      , sourceEndPadding = sourceByteLength * 8 - bitLength - sourceBeginPadding
-
-      , targetByteOffset = Math.floor(targetBitOffset / 8)
-      , targetBeginPadding = targetBitOffset % 8
-      , targetByteLength = Math.ceil((targetBeginPadding + bitLength) / 8)
-      , targetEndPadding = targetByteLength * 8 - bitLength - targetBeginPadding
-
-    // Other bytes
-    var bytes = new Array(sourceByteLength)
-    for (var j = 0; j < sourceByteLength; j++) bytes[j] = source.getUint8(sourceByteOffset + j)
-    if (targetByteLength > sourceByteLength || targetBeginPadding > sourceBeginPadding) bytes.unshift(0)
-
-    var leftShift = (sourceBeginPadding - targetBeginPadding + 8) % 8
-    for (var k = 0; k < bytes.length; k++) {
-      bytes[k] = ((bytes[k] << leftShift) & 255) | ((bytes[k + 1] || 0) >> 8 - leftShift)
-    }
-
-    var beginMask = 255 >> targetBeginPadding
-      , endMask = 255 << targetEndPadding
-    bytes[0] &= beginMask
-    bytes[0] |= ~beginMask & target.getUint8(targetByteOffset)
-    bytes[targetByteLength - 1] &= endMask
-    bytes[targetByteLength - 1] |= ~endMask & target.getUint8(targetByteOffset + targetByteLength - 1)
-
-    for (var l = 0; l < targetByteLength; l++) target.setUint8(targetByteOffset + l, bytes[l])
-  }
-
   function View(parent, offset) {
     if (typeof parent === 'number') parent = (typeof Buffer === 'undefined') ? new DataView(new ArrayBuffer(parent))
                                                                              : new Buffer(parent)
     if (parent) Object.defineProperty(this, 'parent', { value: parent })
     Object.defineProperty(this, 'offset', { value: offset || 0 })
   }
+
+  // Bitmasks with j leading 1s
+  var ones = []
+  for (var j = 1; j <= 32; j++) ones[j] = (1 << j) - 1
 
   Object.defineProperties(View.prototype, {
     root: { get: function() {
@@ -178,52 +149,61 @@
     parent: {
       get: function() { throw new ReferenceError('No parent defined.') },
       set: function() { throw new ReferenceError('No parent defined.') }
-    }
+    },
+
+    getUint: { value: function(bit_length, offset, little_endian) {
+      offset += this.root_offset
+
+      var byte_offset = Math.floor(offset)
+        , bit_offset = (offset % 1) * 8
+        , overflow = bit_length + bit_offset - 32
+
+      if (bit_offset === 0 && (bit_length === 8 || bit_length === 16 || bit_length === 32)) {
+        return this.root['getUint' + bit_length](offset, little_endian)
+
+      } else if (overflow > 0) {
+        return (this.getUint(bit_length - overflow, offset) << overflow) +
+               (this.getUint(overflow, byte_offset + 4))
+
+      } else {
+        return (this.root.getUint32(byte_offset) >> -overflow) & ones[bit_length]
+      }
+    }},
+
+    setUint: { value: function(bit_length, offset, value, little_endian) {
+      offset += this.root_offset
+
+      var byte_offset = Math.floor(offset)
+        , bit_offset = (offset % 1) * 8
+        , overflow = bit_length + bit_offset - 32
+
+      if (bit_offset === 0 && (bit_length === 8 || bit_length === 16 || bit_length === 32)) {
+        this.root['setUint' + bit_length](offset, value, little_endian)
+
+      } else if (overflow > 0) {
+        this.setUint(bit_length - overflow, offset, value >> overflow)
+        this.setUint(overflow, byte_offset + 4, value & ones[overflow])
+
+      } else {
+        var back_offset = -overflow
+          , one_mask = value << back_offset
+          , zero_mask = one_mask | ones[back_offset] | (ones[bit_offset] << bit_length + back_offset)
+        this.root.setUint32(byte_offset, this.root.getUint32(byte_offset) & zero_mask | one_mask)
+      }
+    }}
   })
 
-  function declareAccessorFunctions(bitLength) {
-    var length = bitLength
-      , chunkLength = Math.pow(2, Math.max(3, Math.ceil(Math.log(length)/Math.log(2))))
-      , tempOffset = chunkLength - length
+  function declareAccessorFunctions(bit_length) {
+    View.prototype['getUint' + bit_length] = function(offset, little_endian) {
+      return this.getUint(bit_length, offset, little_endian)
+    }
 
-      , tempChunkGet = tempView['getUint' + chunkLength].bind(tempView, 0)
-      , tempChunkSet = tempView['setUint' + chunkLength].bind(tempView, 0)
-      , tempClear = tempView.setUint32.bind(tempView, 0, 0)
-      , tempPull = copy.bind(null, tempView, tempOffset, length)
-      , tempPush = function(view, offset) { copy(view, offset, length, tempView, tempOffset) }
-
-      , getName = 'getUint' + length
-      , setName = 'setUint' + length
-
-    Object.defineProperty(View.prototype, getName, { value: function(offset, littleEndian) {
-      offset += this.root_offset
-
-      if (tempOffset === 0 && offset % 1 === 0) {
-        return this.root[getName](offset, littleEndian)
-
-      } else {
-        tempClear()
-        tempPull(this.root, offset * 8)
-        return tempChunkGet()
-      }
-    }})
-
-    Object.defineProperty(View.prototype, setName, { value: function(offset, value, littleEndian) {
-      offset += this.root_offset
-
-      if (tempOffset === 0 && offset % 1 === 0) {
-        this.root[setName](offset, value, littleEndian)
-
-      } else {
-        tempChunkSet(value)
-        tempPush(this.root, offset * 8)
-      }
-    }})
+    View.prototype['setUint' + bit_length] = function(offset, value, little_endian) {
+      this.setUint(bit_length, offset, value, little_endian)
+    }
   }
 
   for (var length = 1; length <= 32; length++) declareAccessorFunctions(length)
-
-  View.copy = copy
 
 
 
@@ -336,7 +316,7 @@
 
     Object.defineProperty(object, name, {
       get: function() {
-        var value = this['getUint' + (this[size] * 8)](this[offset], this[little_endian])
+        var value = this.getUint(this[size] * 8, this[offset], this[little_endian])
         value = (value in domain) ? domain[value] : value
 
         var error = desc.assert && desc.assert.call(this, value)
@@ -351,7 +331,7 @@
         var error = desc.assert && desc.assert.call(this, value)
         if (error) throw new Error('Assertion Error: ' + this.protocol + '.' + name + ' ' + error)
 
-        this['setUint' + (this[size] * 8)](this[offset], value, this[little_endian])
+        this.setUint(this[size] * 8, this[offset], value, this[little_endian])
       },
 
       enumerable: true
