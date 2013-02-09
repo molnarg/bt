@@ -34,7 +34,7 @@
   function View(parent, offset) {
     if (typeof parent === 'number') parent = (typeof Buffer === 'undefined') ? new DataView(new ArrayBuffer(parent))
                                                                              : new Buffer(parent)
-    if (parent) Object.defineProperty(this, 'parent', { value: parent })
+    this.parent = parent
     this.offset = offset || 0
   }
 
@@ -50,11 +50,6 @@
     root_offset: { get: function() {
       return this.offset + (this.parent.root_offset || 0)
     }},
-
-    parent: {
-      get: function() { throw new ReferenceError('No parent defined.') },
-      set: function() { throw new ReferenceError('No parent defined.') }
-    },
 
     getUint: { value: function(bit_length, offset, little_endian) {
       offset += this.root_offset
@@ -174,7 +169,7 @@
       try {
         descriptor = { value: descriptor.get.call(Object.create(object)) }
       } catch(e) {
-        if (!(e instanceof ReferenceError)) throw e
+        if (!(e instanceof TypeError)) throw e
       }
     }
 
