@@ -58,39 +58,44 @@
     getUint: { value: function getUint(bit_length, offset, little_endian) {
       offset += this.root_offset
 
+      // Shortcut for built-in read methods
+      if (offset % 1 === 0 && (bit_length === 8 || bit_length === 16 || bit_length === 32)) {
+        return this.root['getUint' + bit_length](offset, little_endian)
+      }
+
       var byte_offset = Math.floor(offset)
         , bit_offset = (offset % 1) * 8
-        , overflow = bit_length + bit_offset - 32
+        , back_offset = 32 - bit_length - bit_offset
 
-      if (bit_offset === 0 && (bit_length === 8 || bit_length === 16 || bit_length === 32)) {
-        return this.root['getUint' + bit_length](offset, little_endian)
-
-      } else if (overflow > 0) {
+      if (back_offset < 0) {
+        var overflow = -back_offset
         return (this.getUint(bit_length - overflow, offset) << overflow) +
                (this.getUint(overflow, byte_offset + 4))
 
       } else {
-        return (this.root.getUint32(byte_offset) >> -overflow) & ones[bit_length]
+        return (this.root.getUint32(byte_offset) >> back_offset) & ones[bit_length]
       }
     }},
 
     setUint: { value: function setUint(bit_length, offset, value, little_endian) {
       offset += this.root_offset
 
+      // Shortcut for built-in write methods
+      if (offset % 1 === 0 && (bit_length === 8 || bit_length === 16 || bit_length === 32)) {
+        this.root['setUint' + bit_length](offset, value, little_endian)
+      }
+
       var byte_offset = Math.floor(offset)
         , bit_offset = (offset % 1) * 8
-        , overflow = bit_length + bit_offset - 32
+        , back_offset = 32 - bit_length - bit_offset
 
-      if (bit_offset === 0 && (bit_length === 8 || bit_length === 16 || bit_length === 32)) {
-        this.root['setUint' + bit_length](offset, value, little_endian)
-
-      } else if (overflow > 0) {
+      if (back_offset < 0) {
+        var overflow = -back_offset
         this.setUint(bit_length - overflow, offset, value >> overflow)
         this.setUint(overflow, byte_offset + 4, value & ones[overflow])
 
       } else {
-        var back_offset = -overflow
-          , one_mask = value << back_offset
+        var one_mask = value << back_offset
           , zero_mask = one_mask | ones[back_offset] | (ones[bit_offset] << bit_length + back_offset)
         this.root.setUint32(byte_offset, this.root.getUint32(byte_offset) & zero_mask | one_mask)
       }
