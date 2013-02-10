@@ -55,7 +55,7 @@
       return offset
     }},
 
-    getUint: { value: function(bit_length, offset, little_endian) {
+    getUint: { value: function getUint(bit_length, offset, little_endian) {
       offset += this.root_offset
 
       var byte_offset = Math.floor(offset)
@@ -74,7 +74,7 @@
       }
     }},
 
-    setUint: { value: function(bit_length, offset, value, little_endian) {
+    setUint: { value: function setUint(bit_length, offset, value, little_endian) {
       offset += this.root_offset
 
       var byte_offset = Math.floor(offset)
@@ -299,7 +299,7 @@
     var assertion = desc.assert
 
     Object.defineProperty(object, name, {
-      get: function() {
+      get: function getBitfield() {
         var value = this.getUint(this[size] * 8, this[offset], this[little_endian])
         value = (value in domain) ? domain[value] : value
 
@@ -308,7 +308,7 @@
         return value
       },
 
-      set: function(value) {
+      set: function setBitfield(value) {
         if (value in reverse_domain) value = reverse_domain[value]
 
         if (assertion) assertion.call(this, value)
@@ -332,7 +332,7 @@
     var buildtime_view   = propertyExpression(object, type, desc.view)
 
     Object.defineProperty(object, name, {
-      get: function() {
+      get: function getTypedValue() {
         var nested_object = new this[type](this, this[offset])
 
         // The offset is constant, so the nested object can be cached safely
@@ -342,7 +342,7 @@
         return nested_object
       },
 
-      set: function(value) {
+      set: function setTypedValue(value) {
         var nested_object = this[name]
         if (nested_object.set) nested_object.set(value)
       }
@@ -392,21 +392,21 @@
   }
 
   List.prototype = Object.create(Template.prototype, {
-    last: { get: function() {
+    last: { get: function getLast() {
       return this[this.length - 1]
     }},
 
-    next: { get: function() {
+    next: { get: function getNext() {
       return this[this.length]
     }},
 
-    size: { get: function() {
+    size: { get: function getSize() {
       var length = this.length
       this.define(this.length)
       return this['__offset_' + length]
     }},
 
-    length: { get: function() {
+    length: { get: function getLength() {
       Object.defineProperty(this, 'length', { value: 0, writable: true })
 
       while (!this.until()) this.length += 1
@@ -416,7 +416,7 @@
       return length
     }},
 
-    set: { value: function(array) {
+    set: { value: function setArray(array) {
       Object.defineProperty(this, 'length', { value: 0, writable: true, configurable: true })
 
       for (var i = 0; i < array.length; i++) {
@@ -428,7 +428,7 @@
       delete this.length
     }},
 
-    define: { value: function(index) {
+    define: { value: function define(index) {
       var last = this.__last
       while (last < index) {
         this.__offset_item = this['__offset_' + last]
@@ -442,12 +442,12 @@
       return this['__offset_' + index]
     }},
 
-    getItem: { value: function(index) {
+    getItem: { value: function getItem(index) {
       this.__offset_item = this.define(index)
       return this.item
     }},
 
-    setItem: { value: function(index, value) {
+    setItem: { value: function setItem(index, value) {
       this.__offset_item = this.define(index)
       this.item = value
     }}
