@@ -10,6 +10,7 @@
   }
 
 }(this, function () {
+  'use strict'
 
   if (typeof Buffer !== 'undefined') Object.defineProperties(Buffer.prototype, {
     getUint8 : { value: Buffer.prototype.readUInt8 },
@@ -436,7 +437,7 @@
     }},
 
     length: { get: function getLength() {
-      Object.defineProperty(this, 'length', { value: 0, writable: true })
+      Object.defineProperty(this, 'length', { value: 0, writable: true, configurable: true })
 
       while (!this.until()) this.length += 1
 
