@@ -282,6 +282,13 @@
     return TemplateClass
   }
 
+  function wrapWithClosure(source, closure) {
+    var closure_keys = Object.keys(closure)
+      , closure_arguments = closure_keys.map(function(key) { return closure[key] })
+
+    return Function.apply(null, closure_keys.concat('return ' + source)).apply(null, closure_arguments)
+  }
+
   function defineBitfieldProperty(object, name, desc) {
     if (!(desc instanceof Object)) desc = { size: desc }
 
@@ -292,32 +299,49 @@
     propertyExpression(object, size, desc.size)
     propertyExpression(object, little_endian, desc.little_endian)
 
-    var domain = desc.domain || (desc.size === 1/8 ? { 0: false, 1 : true } : {})
-      , reverse_domain = {}
-    for (var n in domain) reverse_domain[domain[n]] = Number(n)
+    // Getter
+    var getter_name = 'get_' + name
+      , getter_closure = {}
+      , getter_src = ['var value = this.getUint(this.' + size + ' * 8, this.' + offset + ', this.' + little_endian + ')']
 
-    var assertion = desc.assert
+    if (desc.domain) {
+      getter_src.push('if (value in domain) value = domain[value]')
+      getter_closure.domain = desc.domain
 
-    Object.defineProperty(object, name, {
-      get: function getBitfield() {
-        var value = this.getUint(this[size] * 8, this[offset], this[little_endian])
-        value = (value in domain) ? domain[value] : value
+    } else if (desc.size === 1/8) {
+      getter_src.push('value = Boolean(value)')
+    }
 
-        if (assertion) assertion.call(this, value)
+    if (desc.assert) {
+      getter_closure.assert = desc.assert
+      getter_src.push('assert.call(this, value)')
+    }
 
-        return value
-      },
+    var getter = wrapWithClosure('function ' + getter_name + '() {\n' + getter_src.join('\n') + '\n return value \n}', getter_closure)
 
-      set: function setBitfield(value) {
-        if (value in reverse_domain) value = reverse_domain[value]
+    // Setter
+    var setter_name = 'set_' + name
+      , setter_closure = {}
+      , setter_src = ['this.setUint(this.' + size + ' * 8, this.' + offset + ', value, this.' + little_endian + ')']
 
-        if (assertion) assertion.call(this, value)
+    if (desc.assert) {
+      setter_closure.assert = desc.assert
+      setter_src.unshift('assert.call(this, value)')
+    }
 
-        this.setUint(this[size] * 8, this[offset], value, this[little_endian])
-      },
+    if (desc.domain) {
+      setter_closure.reverse_domain = {}
+      for (var n in desc.domain) setter_closure.reverse_domain[desc.domain[n]] = Number(n)
+      setter_src.unshift('if (value in reverse_domain) value = reverse_domain[value]')
 
-      enumerable: true
-    })
+    } else if (desc.size === 1/8) {
+      setter_src.unshift('value = Boolean(value)')
+    }
+
+    var setter = wrapWithClosure('function ' + setter_name + '(value) {\n' + setter_src.join('\n') + '\n}', setter_closure)
+
+    // Defining the property
+    Object.defineProperty(object, name, { get: getter, set: setter, enumerable: true })
 
     object.__last = name
   }
