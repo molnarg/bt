@@ -50,7 +50,7 @@
     }},
 
     root_offset: { get: function() {
-      var view = this, offset = this.offset
+      var view = this, offset = this.offset || 0
       while (view = view.parent) offset += view.offset || 0
       return offset
     }},
