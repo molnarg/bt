@@ -44,11 +44,15 @@
 
   Object.defineProperties(View.prototype, {
     root: { get: function() {
-      return this.parent.root || this.parent
+      var parent = this.parent
+      while (parent.parent) parent = parent.parent
+      return parent
     }},
 
     root_offset: { get: function() {
-      return this.offset + (this.parent.root_offset || 0)
+      var view = this, offset = this.offset
+      while (view = view.parent) offset += view.offset || 0
+      return offset
     }},
 
     getUint: { value: function(bit_length, offset, little_endian) {
