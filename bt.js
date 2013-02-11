@@ -380,81 +380,66 @@
 
   List.prototype = Object.create(Template.prototype, {
     last: { get: function getLast() {
-      return this[this.length - 1]
-    }},
-
-    next: { get: function getNext() {
-      return this[this.length]
+      var last
+      this.forEach(function(item) { last = item })
+      return last
     }},
 
     size: { get: function getSize() {
-      var length = this.length
-      this.define(this.length)
-      return this['__offset_' + length]
+      this.forEach(function() {})
+      return this.next.offset
     }},
 
     length: { get: function getLength() {
-      Object.defineProperty(this, 'length', { value: 0, writable: true, configurable: true })
-
-      while (!this.until()) this.length += 1
-
-      var length = this.length
-      delete this.length
+      var length = 0
+      this.forEach(function() { length += 1 })
       return length
     }},
 
     set: { value: function setArray(array) {
-      Object.defineProperty(this, 'length', { value: 0, writable: true, configurable: true })
-
-      for (var i = 0; i < array.length; i++) {
-        this[i] = array[i]
-        this.length += 1
-      }
-      if (this.close) this.close()
-
-      delete this.length
-    }},
-
-    define: { value: function define(index) {
-      var last = this.__last
-      while (last < index) {
-        this.__offset_item = this['__offset_' + last]
-        this['__size_' + last] = this.__size_item
-        this['__offset_' + (last + 1)] = this['__offset_' + last] + this['__size_' + last]
-        last += 1
-      }
-      this.__last = last
-
-      return this['__offset_' + index]
+      var self
+      this.forEach(function(item, i) {
+        self.item = array[i]
+      })
     }},
 
     getItem: { value: function getItem(index) {
-      this.__offset_item = this.define(index)
-      return this.item
+      var item
+      this.forEach(function(current_item, i) {
+        if (i === index) {
+          item = current_item
+          return false
+        }
+      })
+      return item
     }},
 
     setItem: { value: function setItem(index, value) {
-      this.__offset_item = this.define(index)
-      this.item = value
+      var self = this
+      this.forEach(function(current_item, i) {
+        if (i === index) {
+          self.item = value
+          return false
+        }
+      })
     }},
 
     forEach: { value: function(callback) {
       // Stepping with this.item, and passing inherited objects with fixed offset to callback
       this.__offset_item = 0
+      this.next = this.item
       Object.defineProperties(this, {
         length: { value: 0        , writable: true, configurable: true },
         size:   { value: 0        , writable: true, configurable: true },
-        last:   { value: undefined, writable: true, configurable: true },
-        next:   { value: this.item, writable: true, configurable: true }
+        last:   { value: undefined, writable: true, configurable: true }
       })
 
       while (!this.until()) {
         this.length += 1
         this.last = this.next
-        delete this.__cached___size_item
         this.size += (typeof this.last === 'object') ? this.last.size : this.__size_item
 
-        var cont = callback(this.last)
+        var cont = callback(this.last, this.length - 1)
         if (cont === false) break
 
         this.__offset_item = this.size
@@ -464,7 +449,6 @@
       delete this.length
       delete this.size
       delete this.last
-      delete this.next
     }}
   })
 
