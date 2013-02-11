@@ -374,8 +374,6 @@
 
   function List(parent, offset) {
     Template.call(this, parent, offset)
-    this.__last = 0
-    this.__offset_0 = 0
   }
 
   List.prototype = Object.create(Template.prototype, {
@@ -435,8 +433,8 @@
       })
 
       while (!this.until()) {
-        this.length += 1
         this.last = this.next
+        this.length += 1
         this.size += (typeof this.last === 'object') ? this.last.size : this.__size_item
 
         var cont = callback(this.last, this.length - 1)
