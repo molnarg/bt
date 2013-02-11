@@ -116,34 +116,6 @@
   for (var length = 1; length <= 32; length++) declareAccessorFunctions(length)
 
 
-  function defineStableProperty(object, name, descriptor) {
-    if ('value' in descriptor) {
-      Object.defineProperty(object, name, {
-        value: descriptor.value,
-        writable: false,
-        configurable: true
-      })
-
-    } else {
-      var cached = '__cached_' + name
-      Object.defineProperty(object, name, {
-        get: function() {
-          if (this.unstable) {
-            return descriptor.get.call(this)
-
-          } else {
-            if (!(cached in this)) this[cached] = descriptor.get.call(this)
-            return this[cached]
-          }
-        },
-        set: function() {
-          throw new Error('Cannot change size and offset of properties in a stable packet.')
-        },
-        configurable: true
-      })
-    }
-  }
-
   // Return null if runtime property, and the constant value otherwise
   function propertyExpression(object, name, expression) {
     if (!expression) return undefined
@@ -185,12 +157,7 @@
 
     descriptor.configurable = true
 
-    if (name.indexOf('__') === 0) {
-      defineStableProperty(object, name, descriptor)
-    } else {
-      Object.defineProperty(object, name, descriptor)
-    }
-
+    Object.defineProperty(object, name, descriptor)
 
     return ('value' in descriptor) ? descriptor.value : null
   }
@@ -221,17 +188,7 @@
       } else if (typeof values === 'number' && this.size <= 4) {
         this['setUint' + (this.size * 8)](0, values)
       }
-    }},
-
-    unstable: {
-      get: function() {
-        return this.parent.unstable
-      },
-      set: function(value) {
-        Object.defineProperty(this, 'unstable', { value: value })
-      },
-      configurable: true
-    }
+    }}
   })
 
   Template.defineProperty = function(object, name, desc) {
@@ -462,12 +419,11 @@
       var last = this.__last
       while (last < index) {
         this.__offset_item = this['__offset_' + last]
-        delete this.__cached___size_item   // TODO: Make item (but only item) unstable
         this['__size_' + last] = this.__size_item
         this['__offset_' + (last + 1)] = this['__offset_' + last] + this['__size_' + last]
         last += 1
       }
-      if (!this.unstable) this.__last = last
+      this.__last = last
 
       return this['__offset_' + index]
     }},
