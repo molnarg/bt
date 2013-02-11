@@ -480,6 +480,35 @@
     setItem: { value: function setItem(index, value) {
       this.__offset_item = this.define(index)
       this.item = value
+    }},
+
+    forEach: { value: function(callback) {
+      // Stepping with this.item, and passing inherited objects with fixed offset to callback
+      this.__offset_item = 0
+      Object.defineProperties(this, {
+        length: { value: 0        , writable: true, configurable: true },
+        size:   { value: 0        , writable: true, configurable: true },
+        last:   { value: undefined, writable: true, configurable: true },
+        next:   { value: this.item, writable: true, configurable: true }
+      })
+
+      while (!this.until()) {
+        this.length += 1
+        this.last = this.next
+        delete this.__cached___size_item
+        this.size += (typeof this.last === 'object') ? this.last.size : this.__size_item
+
+        var cont = callback(this.last)
+        if (cont === false) break
+
+        this.__offset_item = this.size
+        this.next = this.item
+      }
+
+      delete this.length
+      delete this.size
+      delete this.last
+      delete this.next
     }}
   })
 
