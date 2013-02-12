@@ -60,8 +60,12 @@
       offset += this.root_offset
 
       // Shortcut for built-in read methods
-      if (offset % 1 === 0 && (bit_length === 8 || bit_length === 16 || bit_length === 32)) {
-        return this.root['getUint' + bit_length](offset, little_endian)
+      if (offset % 1 === 0) {
+        switch(bit_length) {
+          case 8 : return this.root.getUint8 (offset, little_endian)
+          case 16: return this.root.getUint16(offset, little_endian)
+          case 32: return this.root.getUint32(offset, little_endian)
+        }
       }
 
       var byte_offset = Math.floor(offset)
