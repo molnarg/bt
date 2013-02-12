@@ -149,6 +149,9 @@
         // expression is a constructor function
         descriptor = { value: expression }
       }
+
+    } else {
+      throw new Error('Unrecognized expression for ' + name + ': ' + JSON.stringify(expression))
     }
 
     // Simplifying if possible (if there's no reference error)
@@ -156,7 +159,7 @@
       try {
         descriptor = { value: descriptor.get.call(Object.create(object)) }
       } catch(e) {
-        if (!(e instanceof TypeError)) throw e
+        if (!(e instanceof TypeError || e instanceof ReferenceError)) throw e
       }
     }
 
@@ -402,17 +405,19 @@
 
     size: { get: function getSize() {
       this.forEach(function() {})
-      return this.next.offset
+      return this.__offset_item
     }},
 
     length: { get: function getLength() {
+      if ('fixed_length' in this) return this.fixed_length
+
       var length = 0
       this.forEach(function() { length += 1 })
       return length
     }},
 
     set: { value: function setArray(array) {
-      var self
+      var self = this
       this.forEach(function(item, i) {
         self.item = array[i]
       })
@@ -506,11 +511,12 @@
     delete TypedList.prototype.size  // Deleting inlined size
 
     if (options.length) {
-      propertyExpression(TypedList.prototype, 'length', options.length)
+      propertyExpression(TypedList.prototype, 'fixed_length', options.length)
+      Object.defineProperty(TypedList.prototype, 'until', { value: function() {
+        return this.length >= this.fixed_length
+      }})
       Object.defineProperty(TypedList.prototype, 'close', { value: function() {
-        var length = this.length
-        delete this.length
-        this.length = length
+        this.fixed_length = this.length
       }})
     }
 
