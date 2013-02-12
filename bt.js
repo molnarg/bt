@@ -322,22 +322,10 @@
     var buildtime_offset = propertyExpression(object, offset, desc.offset || function() { return this[prev_offset] + this[prev_size] })
     var buildtime_view   = propertyExpression(object, type, desc.view)
 
-    Object.defineProperty(object, name, {
-      get: function getTypedValue() {
-        var nested_object = new this[type](this, this[offset])
+    var getter = new Function('return new this.' + type + '(this, this.' + offset + ')')
+    var setter = new Function('value', 'var object = this.' + name + '\n if (object.set) object.set(value)')
 
-        // The offset is constant, so the nested object can be cached safely
-        // TODO: cache in a way that doesn't destroy the setter
-        // if (buildtime_offset !== null) Object.defineProperty(this, name, { value: nested_object })
-
-        return nested_object
-      },
-
-      set: function setTypedValue(value) {
-        var nested_object = this[name]
-        if (nested_object.set) nested_object.set(value)
-      }
-    })
+    Object.defineProperty(object, name, { get: getter, set: setter })
 
     try {
       var prototype_size = Object.create(buildtime_view.prototype).size
