@@ -179,6 +179,10 @@
       return this['__offset_' + this.__last] + (this['__size_' + this.__last] || 0)
     }},
 
+    inline_size: { value: function() {
+      propertyExpression(this, 'size', 'this.__offset_' + this.__last + ' + (this.__size_' + this.__last + ' || 0)')
+    }},
+
     valueOf: { value: function() {
       var size = this.size
       return (size <= 4) ? this['getUint' + size * 8](0) : undefined
@@ -230,6 +234,7 @@
     var structure = Object.create(prototype)
 
     Template.defineProperties(structure, descriptor)
+    structure.inline_size()
 
     return structure
   }
@@ -498,6 +503,7 @@
     TypedList.prototype = Template.create(List.prototype, structure)
     delete TypedList.prototype.__last
     delete TypedList.prototype.__offset_item
+    delete TypedList.prototype.size  // Deleting inlined size
 
     if (options.length) {
       propertyExpression(TypedList.prototype, 'length', options.length)
