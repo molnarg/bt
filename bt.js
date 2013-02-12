@@ -259,53 +259,64 @@
   function defineBitfieldProperty(object, name, desc) {
     if (!(desc instanceof Object)) desc = { size: desc }
 
-    var offset = '__offset_' + name, size = '__size_' + name, little_endian = '__littleendian_' + name
-      , prev_offset = '__offset_' + object.__last, prev_size = '__size_' + object.__last
+    var offset_prop = '__offset_' + name
+      , size_prop = '__size_' + name
+      , le_prop = '__le_' + name
 
-    propertyExpression(object, offset, desc.offset || function() { return this[prev_offset] + this[prev_size] })
-    propertyExpression(object, size, desc.size)
-    propertyExpression(object, little_endian, desc.little_endian)
+      , prev_offset = '__offset_' + object.__last
+      , prev_size = '__size_' + object.__last
+
+      , offset = propertyExpression(object, offset_prop, desc.offset || function() { return this[prev_offset] + this[prev_size] })
+      , size   = propertyExpression(object, size_prop  , desc.size)
+      , le     = propertyExpression(object, le_prop    , desc.little_endian)
 
     // Getter
     var getter_name = 'get_' + name
       , getter_closure = {}
-      , getter_src = ['var value = this.getUint(this.' + size + ' * 8, this.' + offset + ', this.' + little_endian + ')']
+      , getter_src = 'var value = this.getUint({size}, {offset}, {le});'
+        .replace('{offset}', offset === null ? ('this.' + offset_prop       ) : offset)
+        .replace('{size}'  , size   === null ? ('this.' + size_prop + ' * 8') : size * 8)
+        .replace('{le}'    , le     === null ? ('this.' + le_prop           ) : le)
 
     if (desc.domain) {
-      getter_src.push('if (value in domain) value = domain[value]')
+      getter_src += 'if (value in domain) value = domain[value];'
       getter_closure.domain = desc.domain
 
     } else if (desc.size === 1/8) {
-      getter_src.push('value = Boolean(value)')
+      getter_src += 'value = Boolean(value);'
     }
 
     if (desc.assert) {
       getter_closure.assert = desc.assert
-      getter_src.push('assert.call(this, value)')
+      getter_src += 'assert.call(this, value);'
     }
 
-    var getter = wrapWithClosure('function ' + getter_name + '() {\n' + getter_src.join('\n') + '\n return value \n}', getter_closure)
+    var getter = wrapWithClosure('function ' + getter_name + '() { ' + getter_src + ' return value; }', getter_closure)
+
 
     // Setter
     var setter_name = 'set_' + name
       , setter_closure = {}
-      , setter_src = ['this.setUint(this.' + size + ' * 8, this.' + offset + ', value, this.' + little_endian + ')']
+      , setter_src = 'this.setUint({size}, {offset}, value, {le});'
+        .replace('{offset}', offset === null ? ('this.' + offset_prop       ) : offset)
+        .replace('{size}'  , size   === null ? ('this.' + size_prop + ' * 8') : size * 8)
+        .replace('{le}'    , le     === null ? ('this.' + le_prop           ) : le)
 
     if (desc.assert) {
       setter_closure.assert = desc.assert
-      setter_src.unshift('assert.call(this, value)')
+      setter_src = 'assert.call(this, value);' + setter_src
     }
 
     if (desc.domain) {
       setter_closure.reverse_domain = {}
       for (var n in desc.domain) setter_closure.reverse_domain[desc.domain[n]] = Number(n)
-      setter_src.unshift('if (value in reverse_domain) value = reverse_domain[value]')
+      setter_src = 'if (value in reverse_domain) value = reverse_domain[value];' + setter_src
 
     } else if (desc.size === 1/8) {
-      setter_src.unshift('value = Boolean(value)')
+      setter_src = 'value = Boolean(value);' + setter_src
     }
 
-    var setter = wrapWithClosure('function ' + setter_name + '(value) {\n' + setter_src.join('\n') + '\n}', setter_closure)
+    var setter = wrapWithClosure('function ' + setter_name + '(value) { ' + setter_src + ' }', setter_closure)
 
     // Defining the property
     Object.defineProperty(object, name, { get: getter, set: setter, enumerable: true })
