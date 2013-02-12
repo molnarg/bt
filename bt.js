@@ -313,7 +313,7 @@
       setter_src = 'if (value in reverse_domain) value = reverse_domain[value];' + setter_src
 
     } else if (desc.size === 1/8) {
-      setter_src = 'value = Boolean(value);' + setter_src
+      setter_src = 'value = value ? 1 : 0;' + setter_src
     }
 
     var setter = wrapWithClosure('function ' + setter_name + '(value) { ' + setter_src + ' }', setter_closure)
