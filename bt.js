@@ -414,7 +414,7 @@
       })
     }},
 
-    forEach: { value: function(callback) {
+    forEach: { value: function forEach(callback) {
       // Stepping with this.item, and passing inherited objects with fixed offset to callback
       this.__offset_item = 0
       this.next = this.item
