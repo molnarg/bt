@@ -32,6 +32,7 @@
     } }
   })
 
+  // Offset must be integer number!
   function View(parent, offset) {
     if (typeof parent === 'number') parent = (typeof Buffer === 'undefined') ? new DataView(new ArrayBuffer(parent))
                                                                              : new Buffer(parent)
@@ -270,10 +271,15 @@
       , size   = propertyExpression(object, size_prop  , desc.size)
       , le     = propertyExpression(object, le_prop    , desc.little_endian)
 
+      , rounded = (size === 1 || size === 2 || size === 4)
+
     // Getter
     var getter_name = 'get_' + name
       , getter_closure = {}
-      , getter_src = 'var value = this.getUint({size}, {offset}, {le});'
+      , getter_src = 'var value = ' +
+        (rounded ? 'this.root.getUint{size}(this.root_offset + {offset}, {le});'  // Directly accessing the root buffer
+                 : 'this.getUint({size}, {offset}, {le});'                        // Indirect access, irregular field size
+        )
         .replace('{offset}', offset === null ? ('this.' + offset_prop       ) : offset)
         .replace('{size}'  , size   === null ? ('this.' + size_prop + ' * 8') : size * 8)
         .replace('{le}'    , le     === null ? ('this.' + le_prop           ) : le)
@@ -297,7 +303,10 @@
     // Setter
     var setter_name = 'set_' + name
       , setter_closure = {}
-      , setter_src = 'this.setUint({size}, {offset}, value, {le});'
+      , setter_src =
+        (rounded ? 'this.root.setUint{size}(this.root_offset + {offset}, value, {le});' // Directly accessing the root buffer
+                 : 'this.setUint({size}, {offset}, value, {le});'                       // Indirect access, irregular field size
+        )
         .replace('{offset}', offset === null ? ('this.' + offset_prop       ) : offset)
         .replace('{size}'  , size   === null ? ('this.' + size_prop + ' * 8') : size * 8)
         .replace('{le}'    , le     === null ? ('this.' + le_prop           ) : le)
