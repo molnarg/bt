@@ -205,7 +205,7 @@
 
   Template.defineProperty = function(object, name, desc) {
     if (desc instanceof Array) {
-      defineParallelProperties(object, name, desc)
+      defineBranches(object, name, desc)
 
     } else if (typeof desc === 'function' || (typeof desc === 'object' && desc.view instanceof Function)) {
       defineTypedProperty(object, name, desc)
@@ -365,14 +365,97 @@
     object.__last = name
   }
 
-  function defineParallelProperties(object, name, properties) {
+  function defineBranches(object, name, branches) {
     var previous = object.__last
+      , branchname = '__branch_' + name + '_'
+      , conditions = []
+      , proxy_properties = {}
 
-    for (var i = 0; i < properties.length; i++) {
-      object.__last = previous
-      Template.defineProperties(object, properties[i])
+    var offset = '__offset_' + name, size = '__size_' + name
+      , prev_offset = '__offset_' + previous, prev_size = '__size_' + previous
+
+    function activeBranches() {
+      var active = []
+
+      outer_loop: for (var i = 0; i < conditions.length; i++) {
+        var condition = conditions[i]
+        for (var key in condition) if (this[key] !== condition[key]) continue outer_loop
+        active.push(i)
+      }
+
+      return active
     }
+
+    function activate(branch) {
+      var condition = conditions[branch]
+      for (var key in condition) this[key] = condition[key]
+    }
+
+    // Branch properties
+    branches.forEach(function(branch, index) {
+      var condition = {}, first, last
+      object.__last = previous
+
+      for (var key in branch) {
+        var descriptor = branch[key]
+        if (typeof descriptor === 'object' && 'is' in descriptor) {
+          condition[key] = descriptor.is
+
+        } else {
+          if (!first) first = key
+          last = key
+
+          Template.defineProperty(object, branchname + index + key, descriptor)
+
+          if (key in proxy_properties) {
+            proxy_properties[key].push(index)
+          } else {
+            proxy_properties[key] = [index]
+          }
+        }
+      }
+
+      conditions.push(condition)
+      Object.defineProperty(object, '__size_' + branchname + index, { get: function() {
+        return this['__offset_' + branchname + index + last] + this['__size_' + branchname + index + last] - this['__offset_' + branchname + index + first]
+      }})
+    })
+
+    // Proxy properties
+    Object.keys(proxy_properties).forEach(function(key) {
+      var associated_branches = proxy_properties[key]
+
+      function active_branch() {
+        var active_branches = activeBranches.call(this)
+        for (var i = 0; i < active_branches.length; i++) {
+          var active_branch = active_branches[i]
+          if (associated_branches.indexOf(active_branch) !== -1) return active_branch
+        }
+        return undefined
+      }
+
+      Object.defineProperty(object, key, {
+        get: function() {
+          var active = active_branch.call(this)
+          return (active === undefined) ? undefined : this[branchname + active + key]
+        },
+        set: function(value) {
+          var active = active_branch.call(this)
+          if (!active) activate.call(this, active = associated_branches[0])
+          this[branchname + active + key] = value
+        }
+      })
+    })
+
+    propertyExpression(object, offset, function() { return this[prev_offset] + this[prev_size] })
+    Object.defineProperty(object, size, { get: function() {
+      var active = activeBranches.call(this)[0]
+      return (active === undefined) ? 0 : this['__size_' + branchname + active]
+    }})
+
+    object.__last = name
   }
+
 
   function defineArrayProperty(object, name, desc) {
     var ListType = List.extend(desc)
