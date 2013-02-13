@@ -417,9 +417,15 @@
     }},
 
     set: { value: function setArray(array) {
-      var self = this
-      this.forEach(function(item, i) {
-        self.item = array[i]
+      this.loop(function() {
+        if (this.length < array.length) {
+          this.item = array[this.length]
+          return true
+
+        } else {
+          this.close()
+          return false
+        }
       })
     }},
 
@@ -435,17 +441,31 @@
     }},
 
     setItem: { value: function setItem(index, value) {
-      var self = this
-      this.forEach(function(current_item, i) {
-        if (i === index) {
-          self.item = value
+      var close_next
+      this.loop(function() {
+        if (close_next) {
+          this.close()
           return false
+
+        } else if (this.length === index) {
+          close_next = true
+          this.item = value
+          return true
+
+        } else {
+          return !this.until()
         }
       })
     }},
 
     forEach: { value: function forEach(callback) {
-      // Stepping with this.item, and passing inherited objects with fixed offset to callback
+      this.loop(function() {
+        if (this.last !== undefined && callback(this.last, this.length - 1) === false) return false
+        return !this.until()
+      })
+    }},
+
+    loop: { value: function loop(callback) {
       this.__offset_item = 0
       this.next = this.item
       Object.defineProperties(this, {
@@ -454,14 +474,10 @@
         last:   { value: undefined, writable: true, configurable: true }
       })
 
-      while (!this.until()) {
+      while (callback.call(this)) {
         this.last = this.next
         this.length += 1
         this.size += (typeof this.last === 'object') ? this.last.size : this.__size_item
-
-        var cont = callback(this.last, this.length - 1)
-        if (cont === false) break
-
         this.__offset_item = this.size
         this.next = this.item
       }
@@ -495,6 +511,9 @@
       }
     }
 
+    // Preventing inlining the offset in the item getters and setters
+    options.array.offset = function() { throw new ReferenceError() }
+
     function TypedList(parent, offset) {
       List.call(this, parent, offset)
     }
@@ -507,7 +526,7 @@
 
     TypedList.prototype = Template.create(List.prototype, structure)
     delete TypedList.prototype.__last
-    delete TypedList.prototype.__offset_item
+    delete TypedList.prototype.__offset_item  // Deleting item offset getter, setter. We will adjust it very often.
     delete TypedList.prototype.size  // Deleting inlined size
 
     if (options.length) {
