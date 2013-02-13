@@ -480,6 +480,10 @@
   }
 
   List.prototype = Object.create(Template.prototype, {
+    __offset_undefined: { get: function() {
+      throw new ReferenceError() // Prevents inlining any offset property
+    }},
+
     last: { get: function getLast() {
       var last
       this.forEach(function(item) { last = item })
@@ -593,9 +597,6 @@
         return true
       }
     }
-
-    // Preventing inlining the offset in the item getters and setters
-    options.array.offset = function() { throw new ReferenceError() }
 
     function TypedList(parent, offset) {
       List.call(this, parent, offset)
