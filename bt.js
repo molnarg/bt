@@ -170,8 +170,9 @@
     return ('value' in descriptor) ? descriptor.value : null
   }
 
-  function Template(parent, offset) {
+  function Template(parent, offset, max_size) {
     View.call(this, parent, offset)
+    this.max_size = max_size
   }
 
   Template.prototype = Object.create(View.prototype, {
@@ -179,11 +180,16 @@
     __offset_undefined: { value: 0 },
 
     size: { get: function() {
-      return this['__offset_' + this.__last] + (this['__size_' + this.__last] || 0)
+      return (this['__offset_' + this.__last] + this['__size_' + this.__last]) || this.max_size
     }},
 
+    max_size: {
+      get: function() { return this.__max_size || (this.parent.max_size - this.offset) },
+      set: function(value) { this.__max_size = value }
+    },
+
     inline_size: { value: function() {
-      propertyExpression(this, 'size', 'this.__offset_' + this.__last + ' + (this.__size_' + this.__last + ' || 0)')
+      propertyExpression(this, 'size', '(this.__offset_' + this.__last + ' + this.__size_' + this.__last + ') || this.max_size')
     }},
 
     valueOf: { value: function() {
@@ -199,6 +205,16 @@
 
       } else if (typeof values === 'number' && this.size <= 4) {
         this['setUint' + (this.size * 8)](0, values)
+      }
+    }},
+
+    data: { get: function() {
+      var root = this.root
+
+      if (root instanceof DataView) {
+        return new DataView(root.buffer, root.byteOffset + this.root_offset, this.size)
+      } else {
+        return root.slice(this.root_offset, this.size)
       }
     }}
   })
@@ -245,8 +261,8 @@
   Template.extend = function(structure) {
     var ParentClass = this
 
-    var TemplateClass = structure.init || function TemplateClass(parent, offset) {
-      ParentClass.call(this, parent, offset)
+    var TemplateClass = structure.init || function TemplateClass(parent, offset, max_size) {
+      ParentClass.call(this, parent, offset, max_size)
     }
     delete structure.init
 
@@ -350,7 +366,7 @@
     var buildtime_offset = propertyExpression(object, offset, desc.offset || function() { return this[prev_offset] + this[prev_size] })
     var buildtime_view   = propertyExpression(object, type, desc.view)
 
-    var getter = new Function('return new this.' + type + '(this, this.' + offset + ')')
+    var getter = new Function('return new this.' + type + '(this, this.' + offset + (desc.size ? (', this.' + size) : '') + ')')
     var setter = new Function('value', 'var object = this.' + name + '\n if (object.set) object.set(value)')
 
     Object.defineProperty(object, name, { get: getter, set: setter })
