@@ -33,11 +33,12 @@
   })
 
   // Offset must be integer number!
-  function View(parent, offset) {
+  function View(parent, byteOffset) {
     if (typeof parent === 'number') parent = (typeof Buffer === 'undefined') ? new DataView(new ArrayBuffer(parent))
                                                                              : new Buffer(parent)
     this.parent = parent
-    this.offset = offset || 0
+    this.buffer = parent.buffer || parent // Inheriting buffer from parent (View, DataView, etc.), or parent is the buffer
+    this.byteOffset = (parent.byteOffset || 0) + (byteOffset || 0)
   }
 
   // Bitmasks with j leading 1s
@@ -45,27 +46,15 @@
   for (var j = 1; j <= 32; j++) ones[j] = (1 << j) - 1
 
   Object.defineProperties(View.prototype, {
-    root: { get: function() {
-      var parent = this.parent
-      while (parent.parent) parent = parent.parent
-      return parent
-    }},
-
-    root_offset: { get: function() {
-      var view = this, offset = this.offset || 0
-      while (view = view.parent) offset += view.offset || 0
-      return offset
-    }},
-
     getUint: { value: function getUint(bit_length, offset, little_endian) {
-      offset += this.root_offset
+      offset += this.byteOffset
 
       // Shortcut for built-in read methods
       if (offset % 1 === 0) {
         switch(bit_length) {
-          case 8 : return this.root.getUint8 (offset, little_endian)
-          case 16: return this.root.getUint16(offset, little_endian)
-          case 32: return this.root.getUint32(offset, little_endian)
+          case 8 : return this.buffer.getUint8 (offset, little_endian)
+          case 16: return this.buffer.getUint16(offset, little_endian)
+          case 32: return this.buffer.getUint32(offset, little_endian)
         }
       }
 
@@ -79,16 +68,16 @@
                (this.getUint(overflow, byte_offset + 4))
 
       } else {
-        return (this.root.getUint32(byte_offset) >> back_offset) & ones[bit_length]
+        return (this.buffer.getUint32(byte_offset) >> back_offset) & ones[bit_length]
       }
     }},
 
     setUint: { value: function setUint(bit_length, offset, value, little_endian) {
-      offset += this.root_offset
+      offset += this.byteOffset
 
       // Shortcut for built-in write methods
       if (offset % 1 === 0 && (bit_length === 8 || bit_length === 16 || bit_length === 32)) {
-        this.root['setUint' + bit_length](offset, value, little_endian)
+        this.buffer['setUint' + bit_length](offset, value, little_endian)
       }
 
       var byte_offset = Math.floor(offset)
@@ -103,7 +92,7 @@
       } else {
         var one_mask = value << back_offset
           , zero_mask = one_mask | ones[back_offset] | (ones[bit_offset] << bit_length + back_offset)
-        this.root.setUint32(byte_offset, this.root.getUint32(byte_offset) & zero_mask | one_mask)
+        this.buffer.setUint32(byte_offset, this.buffer.getUint32(byte_offset) & zero_mask | one_mask)
       }
     }}
   })
@@ -209,12 +198,12 @@
     }},
 
     data: { get: function() {
-      var root = this.root
+      var root = this.buffer
 
       if (root instanceof DataView) {
-        return new DataView(root.buffer, root.byteOffset + this.root_offset, this.size)
+        return new DataView(root, this.byteOffset, this.size)
       } else {
-        return root.slice(this.root_offset, this.size)
+        return root.slice(this.byteOffset, this.size)
       }
     }}
   })
@@ -301,7 +290,7 @@
     var getter_name = 'get_' + name
       , getter_closure = {}
       , getter_src = 'var value = ' +
-        (rounded ? 'this.root.getUint{size}(this.root_offset + {offset}, {le});'  // Directly accessing the root buffer
+        (rounded ? 'this.buffer.getUint{size}(this.byteOffset + {offset}, {le});'  // Directly accessing the root buffer
                  : 'this.getUint({size}, {offset}, {le});'                        // Indirect access, irregular field size
         )
         .replace('{offset}', offset === null ? ('this.' + offset_prop       ) : offset)
@@ -328,7 +317,7 @@
     var setter_name = 'set_' + name
       , setter_closure = {}
       , setter_src =
-        (rounded ? 'this.root.setUint{size}(this.root_offset + {offset}, value, {le});' // Directly accessing the root buffer
+        (rounded ? 'this.buffer.setUint{size}(this.byteOffset + {offset}, value, {le});' // Directly accessing the root buffer
                  : 'this.setUint({size}, {offset}, value, {le});'                       // Indirect access, irregular field size
         )
         .replace('{offset}', offset === null ? ('this.' + offset_prop       ) : offset)
@@ -605,7 +594,7 @@
     if (!options.until && !options.length) options.until = function() {
       try {
         // Stop if the end of the array would be beyond the end of the buffer
-        return this.root_offset + this.size + this.next.size > (this.root.length || this.root.byteLength)
+        return this.byteOffset + this.size + this.next.size > (this.buffer.length || this.buffer.byteLength)
 
       } catch (e) {
         if (e.name !== 'AssertionError' && e.name !== 'INDEX_SIZE_ERR') throw e
