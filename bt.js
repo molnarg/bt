@@ -76,8 +76,12 @@
       offset += this.byteOffset
 
       // Shortcut for built-in write methods
-      if (offset % 1 === 0 && (bit_length === 8 || bit_length === 16 || bit_length === 32)) {
-        this.buffer['setUint' + bit_length](offset, value, little_endian)
+      if (offset % 1 === 0) {
+        switch(bit_length) {
+          case 8 : return this.buffer.setUint8 (offset, value, little_endian)
+          case 16: return this.buffer.setUint16(offset, value, little_endian)
+          case 32: return this.buffer.setUint32(offset, value, little_endian)
+        }
       }
 
       var byte_offset = Math.floor(offset)
