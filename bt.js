@@ -12,25 +12,34 @@
 }(this, function () {
   'use strict'
 
-  if (typeof Buffer !== 'undefined') Object.defineProperties(Buffer.prototype, {
-    getUint8 : { value: Buffer.prototype.readUInt8 },
-    getUint16: { value: function(offset, littleEndian) {
-      return littleEndian ? this.readUInt16LE(offset) : this.readUInt16BE(offset)
-    } },
-    getUint32: { value: function(offset, littleEndian) {
-      return littleEndian ? this.readUInt32LE(offset) : this.readUInt32BE(offset)
-    } },
+  var NodeBufferDataView
+  if (typeof Buffer !== 'undefined') {
+    NodeBufferDataView = function(buffer) {
+      this.buffer = buffer
+    }
 
-    setUint8 : { value: function(offset, value) {
-      this.writeUInt8(value, offset)
-    } },
-    setUint16: { value: function(offset, value, littleEndian) {
-      littleEndian ? this.writeUInt16LE(value, offset) : this.writeUInt16BE(value, offset)
-    } },
-    setUint32: { value: function(offset, value, littleEndian) {
-      littleEndian ? this.writeUInt32LE(value, offset) : this.writeUInt32BE(value, offset)
-    } }
-  })
+    NodeBufferDataView.prototype = Object.defineProperties(Buffer.prototype, {
+      getUint8 : { value: function(offset) {
+        return this.buffer.readUInt8(offset)
+      } },
+      getUint16: { value: function(offset, littleEndian) {
+        return littleEndian ? this.buffer.readUInt16LE(offset) : this.buffer.readUInt16BE(offset)
+      } },
+      getUint32: { value: function(offset, littleEndian) {
+        return littleEndian ? this.buffer.readUInt32LE(offset) : this.buffer.readUInt32BE(offset)
+      } },
+
+      setUint8 : { value: function(offset, value) {
+        this.buffer.writeUInt8(value, offset)
+      } },
+      setUint16: { value: function(offset, value, littleEndian) {
+        littleEndian ? this.buffer.writeUInt16LE(value, offset) : this.buffer.writeUInt16BE(value, offset)
+      } },
+      setUint32: { value: function(offset, value, littleEndian) {
+        littleEndian ? this.buffer.writeUInt32LE(value, offset) : this.buffer.writeUInt32BE(value, offset)
+      } }
+    })
+  }
 
   // Offset must be integer number!
   function View(parent, byteOffset) {
@@ -39,6 +48,9 @@
     this.parent = parent
     this.buffer = parent.buffer || parent // Inheriting buffer from parent (View, DataView, etc.), or parent is the buffer
     this.byteOffset = (parent.byteOffset || 0) + (byteOffset || 0)
+
+    // Since inheritance is not possible, we store a dataview instance instead
+    this.dataview = parent.dataview || (this.buffer instanceof ArrayBuffer ? new DataView(this.buffer) : new NodeBufferDataView(this.buffer))
   }
 
   // Bitmasks with j leading 1s
@@ -52,9 +64,9 @@
       // Shortcut for built-in read methods
       if (offset % 1 === 0) {
         switch(bit_length) {
-          case 8 : return this.buffer.getUint8 (offset, little_endian)
-          case 16: return this.buffer.getUint16(offset, little_endian)
-          case 32: return this.buffer.getUint32(offset, little_endian)
+          case 8 : return this.dataview.getUint8 (offset, little_endian)
+          case 16: return this.dataview.getUint16(offset, little_endian)
+          case 32: return this.dataview.getUint32(offset, little_endian)
         }
       }
 
@@ -68,7 +80,7 @@
                (this.getUint(overflow, byte_offset + 4))
 
       } else {
-        return (this.buffer.getUint32(byte_offset) >> back_offset) & ones[bit_length]
+        return (this.dataview.getUint32(byte_offset) >> back_offset) & ones[bit_length]
       }
     }},
 
@@ -78,9 +90,9 @@
       // Shortcut for built-in write methods
       if (offset % 1 === 0) {
         switch(bit_length) {
-          case 8 : return this.buffer.setUint8 (offset, value, little_endian)
-          case 16: return this.buffer.setUint16(offset, value, little_endian)
-          case 32: return this.buffer.setUint32(offset, value, little_endian)
+          case 8 : return this.dataview.setUint8 (offset, value, little_endian)
+          case 16: return this.dataview.setUint16(offset, value, little_endian)
+          case 32: return this.dataview.setUint32(offset, value, little_endian)
         }
       }
 
@@ -96,7 +108,7 @@
       } else {
         var one_mask = value << back_offset
           , zero_mask = one_mask | ones[back_offset] | (ones[bit_offset] << bit_length + back_offset)
-        this.buffer.setUint32(byte_offset, this.buffer.getUint32(byte_offset) & zero_mask | one_mask)
+        this.dataview.setUint32(byte_offset, this.dataview.getUint32(byte_offset) & zero_mask | one_mask)
       }
     }}
   })
@@ -294,7 +306,7 @@
     var getter_name = 'get_' + name
       , getter_closure = {}
       , getter_src = 'var value = ' +
-        (rounded ? 'this.buffer.getUint{size}(this.byteOffset + {offset}, {le});'  // Directly accessing the root buffer
+        (rounded ? 'this.dataview.getUint{size}(this.byteOffset + {offset}, {le});'  // Directly accessing the root buffer
                  : 'this.getUint({size}, {offset}, {le});'                        // Indirect access, irregular field size
         )
         .replace('{offset}', offset === null ? ('this.' + offset_prop       ) : offset)
@@ -321,7 +333,7 @@
     var setter_name = 'set_' + name
       , setter_closure = {}
       , setter_src =
-        (rounded ? 'this.buffer.setUint{size}(this.byteOffset + {offset}, value, {le});' // Directly accessing the root buffer
+        (rounded ? 'this.dataview.setUint{size}(this.byteOffset + {offset}, value, {le});' // Directly accessing the root buffer
                  : 'this.setUint({size}, {offset}, value, {le});'                       // Indirect access, irregular field size
         )
         .replace('{offset}', offset === null ? ('this.' + offset_prop       ) : offset)
