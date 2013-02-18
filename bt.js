@@ -14,9 +14,6 @@
 
   // Offset must be integer number!
   function View(parent, byteOffset, byteLength) {
-    if (typeof parent === 'number') parent = (typeof Buffer === 'undefined') ? new DataView(new ArrayBuffer(parent))
-                                                                             : new Buffer(parent)
-
     this.parent = parent
     this.buffer = parent.buffer || parent // Inheriting buffer from parent (View, DataView, etc.), or parent is the buffer
     this.byteOffset = (parent.byteOffset || 0) + (byteOffset || 0)
