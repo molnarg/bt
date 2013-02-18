@@ -12,7 +12,6 @@
 }(this, function () {
   'use strict'
 
-  // Offset must be integer number!
   function View(parent, byteOffset, byteLength) {
     this.parent = parent
     this.buffer = parent.buffer || parent // Inheriting buffer from parent (View, DataView, etc.), or parent is the buffer
