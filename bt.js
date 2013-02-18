@@ -162,7 +162,7 @@
 
     valueOf: { value: function() {
       var size = this.size
-      return (size <= 4) ? this['getUint' + size * 8](0) : undefined
+      return (size <= 4) ? this.getUint(size * 8, 0) : undefined
     }},
 
     set: { value: function(values) {
@@ -172,17 +172,15 @@
         }
 
       } else if (typeof values === 'number' && this.size <= 4) {
-        this['setUint' + (this.size * 8)](0, values)
+        this.setUint(size * 8, 0, values)
       }
     }},
 
     data: { get: function() {
-      var root = this.buffer
-
-      if (root instanceof DataView) {
-        return new DataView(root, this.byteOffset, this.size)
+      if (this.buffer instanceof ArrayBuffer) {
+        return new DataView(this.buffer, this.byteOffset, this.size)
       } else {
-        return root.slice(this.byteOffset, this.size)
+        return this.buffer.slice(this.byteOffset, this.size)
       }
     }}
   })
@@ -198,13 +196,15 @@
       defineBitfieldProperty(object, name, desc)
 
     } else if ('array' in desc) {
-      defineArrayProperty(object, name, desc)
+      if (!desc.__view) desc.__view = List.extend(desc)
+      defineTypedProperty(object, name, desc.__view)
 
     } else if ('value' in desc || 'get' in desc || 'set' in desc) {
       Object.defineProperty(object, name, desc)
 
     } else {
-      defineNestedProperties(object, name, desc)
+      if (!desc.__view) desc.__view = Template.extend(desc)
+      defineTypedProperty(object, name, desc.__view)
     }
   }
 
@@ -212,8 +212,7 @@
     var names = properties._order || Object.keys(properties)
 
     for (var i = 0; i < names.length; i++) {
-      var name = names[i]
-      Template.defineProperty(object, name, properties[name])
+      Template.defineProperty(object, names[i], properties[names[i]])
     }
   }
 
@@ -439,20 +438,6 @@
 
     object.__last = name
   }
-
-
-  function defineArrayProperty(object, name, desc) {
-    var ListType = List.extend(desc)
-
-    defineTypedProperty(object, name, ListType)
-  }
-
-  function defineNestedProperties(object, name, desc) {
-    if (!desc.__view) desc.__view = Template.extend(desc)
-
-    defineTypedProperty(object, name, { view: desc.__view })
-  }
-
 
 
   function List(parent, byteOffset, byteLength) {
