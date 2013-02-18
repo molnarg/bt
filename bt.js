@@ -133,7 +133,7 @@
       try {
         descriptor = { value: descriptor.get.call(Object.create(object)) }
       } catch(e) {
-        if (!(e instanceof TypeError || e instanceof ReferenceError || e instanceof RangeError)) throw e
+        if (!(e instanceof TypeError || e instanceof ReferenceError || e instanceof RangeError || e.name === 'INDEX_SIZE_ERR')) throw e
       }
     }
 
