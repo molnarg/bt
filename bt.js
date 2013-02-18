@@ -12,45 +12,18 @@
 }(this, function () {
   'use strict'
 
-  var NodeBufferDataView
-  if (typeof Buffer !== 'undefined') {
-    NodeBufferDataView = function(buffer) {
-      this.buffer = buffer
-    }
-
-    NodeBufferDataView.prototype = Object.defineProperties(Buffer.prototype, {
-      getUint8 : { value: function(offset) {
-        return this.buffer.readUInt8(offset)
-      } },
-      getUint16: { value: function(offset, littleEndian) {
-        return littleEndian ? this.buffer.readUInt16LE(offset) : this.buffer.readUInt16BE(offset)
-      } },
-      getUint32: { value: function(offset, littleEndian) {
-        return littleEndian ? this.buffer.readUInt32LE(offset) : this.buffer.readUInt32BE(offset)
-      } },
-
-      setUint8 : { value: function(offset, value) {
-        this.buffer.writeUInt8(value, offset)
-      } },
-      setUint16: { value: function(offset, value, littleEndian) {
-        littleEndian ? this.buffer.writeUInt16LE(value, offset) : this.buffer.writeUInt16BE(value, offset)
-      } },
-      setUint32: { value: function(offset, value, littleEndian) {
-        littleEndian ? this.buffer.writeUInt32LE(value, offset) : this.buffer.writeUInt32BE(value, offset)
-      } }
-    })
-  }
-
   // Offset must be integer number!
-  function View(parent, byteOffset) {
+  function View(parent, byteOffset, byteLength) {
     if (typeof parent === 'number') parent = (typeof Buffer === 'undefined') ? new DataView(new ArrayBuffer(parent))
                                                                              : new Buffer(parent)
+
     this.parent = parent
     this.buffer = parent.buffer || parent // Inheriting buffer from parent (View, DataView, etc.), or parent is the buffer
     this.byteOffset = (parent.byteOffset || 0) + (byteOffset || 0)
+    this.byteLength = byteLength || (parent.byteLength || this.buffer.length) - (byteOffset || 0)
 
     // Since inheritance is not possible, we store a dataview instance instead
-    this.dataview = parent.dataview || (this.buffer instanceof ArrayBuffer ? new DataView(this.buffer) : new NodeBufferDataView(this.buffer))
+    this.dataview = parent.dataview || new DataView(this.buffer instanceof View ? new ArrayBuffer(0) : this.buffer)
   }
 
   // Bitmasks with j leading 1s
@@ -164,7 +137,7 @@
       try {
         descriptor = { value: descriptor.get.call(Object.create(object)) }
       } catch(e) {
-        if (!(e instanceof TypeError || e instanceof ReferenceError)) throw e
+        if (!(e instanceof TypeError || e instanceof ReferenceError || e instanceof RangeError)) throw e
       }
     }
 
@@ -175,9 +148,8 @@
     return ('value' in descriptor) ? descriptor.value : null
   }
 
-  function Template(parent, offset, max_size) {
-    View.call(this, parent, offset)
-    this.max_size = max_size
+  function Template(parent, byteOffset, byteLength) {
+    View.call(this, parent, byteOffset, byteLength)
   }
 
   Template.prototype = Object.create(View.prototype, {
@@ -185,16 +157,11 @@
     __offset_undefined: { value: 0 },
 
     size: { get: function() {
-      return (this['__offset_' + this.__last] + this['__size_' + this.__last]) || this.max_size
+      return (this['__offset_' + this.__last] + this['__size_' + this.__last]) || this.byteLength
     }},
 
-    max_size: {
-      get: function() { return this.__max_size || (this.parent.max_size - this.offset) },
-      set: function(value) { this.__max_size = value }
-    },
-
     inline_size: { value: function() {
-      propertyExpression(this, 'size', '(this.__offset_' + this.__last + ' + this.__size_' + this.__last + ') || this.max_size')
+      propertyExpression(this, 'size', '(this.__offset_' + this.__last + ' + this.__size_' + this.__last + ') || this.byteLength')
     }},
 
     valueOf: { value: function() {
@@ -266,8 +233,8 @@
   Template.extend = function(structure) {
     var ParentClass = this
 
-    var TemplateClass = structure.init || function TemplateClass(parent, offset, max_size) {
-      ParentClass.call(this, parent, offset, max_size)
+    var TemplateClass = structure.init || function TemplateClass(parent, byteOffset, byteLength) {
+      ParentClass.call(this, parent, byteOffset, byteLength)
     }
     delete structure.init
 
@@ -485,19 +452,15 @@
   }
 
   function defineNestedProperties(object, name, desc) {
-    if (!desc.__view) {
-      var prototype = Template.create(Template.prototype, desc)
-      desc.__view = function NestedStructure(parent, offset) { Template.call(this, parent, offset) }
-      desc.__view.prototype = prototype
-    }
+    if (!desc.__view) desc.__view = Template.extend(desc)
 
     defineTypedProperty(object, name, { view: desc.__view })
   }
 
 
 
-  function List(parent, offset) {
-    Template.call(this, parent, offset)
+  function List(parent, byteOffset, byteLength) {
+    Template.call(this, parent, byteOffset, byteLength)
   }
 
   List.prototype = Object.create(Template.prototype, {
@@ -613,14 +576,14 @@
         return this.byteOffset + this.size + this.next.size > (this.buffer.length || this.buffer.byteLength)
 
       } catch (e) {
-        if (e.name !== 'AssertionError' && e.name !== 'INDEX_SIZE_ERR') throw e
+        if (e.name !== 'AssertionError' && e.name !== 'INDEX_SIZE_ERR' && e.message !== 'Index out of range.') throw e
         // If e is 'AssertionError: Trying to read beyond buffer length' then stop
         return true
       }
     }
 
-    function TypedList(parent, offset) {
-      List.call(this, parent, offset)
+    function TypedList(parent, byteOffset, byteLength) {
+      List.call(this, parent, byteOffset, byteLength)
     }
 
     var structure = {
