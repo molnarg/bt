@@ -16,7 +16,7 @@
     this.parent = parent
     this.buffer = parent.buffer || parent // Inheriting buffer from parent (View, DataView, etc.), or parent is the buffer
     this.byteOffset = (parent.byteOffset || 0) + (byteOffset || 0)
-    this.byteLength = byteLength || (parent.byteLength || this.buffer.length) - (byteOffset || 0)
+    this.byteLength = byteLength || (parent.byteLength || parent.length) - (byteOffset || 0)
 
     // Since inheritance is not possible, we store a dataview instance instead
     this.dataview = parent.dataview || new DataView(this.buffer instanceof View ? new ArrayBuffer(0) : this.buffer)
