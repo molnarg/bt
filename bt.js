@@ -333,7 +333,14 @@
     var buildtime_offset = propertyExpression(object, offset, desc.offset || function() { return this[prev_offset] + this[prev_size] })
     var buildtime_view   = propertyExpression(object, type, desc.view)
 
-    var getter = new Function('return new this.' + type + '(this, this.' + offset + (desc.size ? (', this.' + size) : '') + ')')
+    var getter_name = 'get_' + name
+      , getter_closure = { Class: buildtime_view }
+      , getter_src = 'return new {Class}(this, {offset}, {size})'
+        .replace('{Class}' , buildtime_view === null   ? ('this.' + type)   : 'Class')
+        .replace('{offset}', buildtime_offset === null ? ('this.' + offset) : buildtime_offset)
+        .replace('{size}'  , 'size' in desc            ? ('this.' + size)   : undefined)
+      , getter = wrapWithClosure('function ' + getter_name + '() { ' + getter_src + ' }', getter_closure)
+
     var setter = new Function('value', 'var object = this.' + name + '\n if (object.set) object.set(value)')
 
     Object.defineProperty(object, name, { get: getter, set: setter })
