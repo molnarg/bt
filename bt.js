@@ -172,7 +172,7 @@
         }
 
       } else if (typeof values === 'number' && this.size <= 4) {
-        this.setUint(size * 8, 0, values)
+        this.setUint(this.size * 8, 0, values)
       }
     }},
 
