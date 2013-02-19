@@ -101,15 +101,12 @@
 
     var descriptor
     if (typeof expression === 'string') {
+      // anonymous function-like string
+      descriptor = { get: new Function('return ' + expression) }
+
       if (expression.match(/^[0-9a-zA-Z_$.]*$/)) {
-        // it is a reference to a property, so it is possible to generate an optimal getter and setter
-        descriptor = {
-          get: new Function('return this.' + expression),
-          set: new Function('value', 'this.' + expression + ' = value')
-        }
-      } else {
-        // anonymous function-like string
-        descriptor = { get: new Function('with(this) { return ' + expression + '}') }
+        // it is a reference to a property, so it is possible to generate a setter as well
+        descriptor.set = new Function('value', expression + ' = value')
       }
 
     } else if (typeof expression === 'number' || typeof expression === 'boolean') {
