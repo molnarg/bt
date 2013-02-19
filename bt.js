@@ -152,7 +152,7 @@
     __size_undefined: { value: 0 },
     __offset_undefined: { value: 0 },
 
-    size: { get: function() {
+    size: { get: function getSize() {
       return (this['__offset_' + this.__last] + this['__size_' + this.__last]) || this.byteLength
     }},
 
@@ -160,12 +160,12 @@
       propertyExpression(this, 'size', '(this.__offset_' + this.__last + ' + this.__size_' + this.__last + ') || this.byteLength')
     }},
 
-    valueOf: { value: function() {
+    valueOf: { value: function valueOf() {
       var size = this.size
       return (size <= 4) ? this.getUint(size * 8, 0) : undefined
     }},
 
-    set: { value: function(values) {
+    set: { value: function set(values) {
       if (typeof values === 'object') {
         for (var key in values) {
           this[key] = values[key]
@@ -176,7 +176,7 @@
       }
     }},
 
-    data: { get: function() {
+    data: { get: function getData() {
       if (this.buffer instanceof ArrayBuffer) {
         return new DataView(this.buffer, this.byteOffset, this.size)
       } else {
@@ -406,7 +406,7 @@
       }
 
       conditions.push(condition)
-      Object.defineProperty(object, '__size_' + branchname + index, { get: function() {
+      Object.defineProperty(object, '__size_' + branchname + index, { get: function getBranchSize() {
         return this['__offset_' + branchname + index + last] + this['__size_' + branchname + index + last] - this['__offset_' + branchname + index + first]
       }})
     })
@@ -425,11 +425,11 @@
       }
 
       Object.defineProperty(object, key, {
-        get: function() {
+        get: function branchProxyGetter() {
           var active = active_branch.call(this)
           return (active === undefined) ? undefined : this[branchname + active + key]
         },
-        set: function(value) {
+        set: function branchProxySetter(value) {
           var active = active_branch.call(this)
           if (!active) activate.call(this, active = associated_branches[0])
           this[branchname + active + key] = value
@@ -437,8 +437,8 @@
       })
     })
 
-    propertyExpression(object, offset, function() { return this[prev_offset] + this[prev_size] })
-    Object.defineProperty(object, size, { get: function() {
+    propertyExpression(object, offset, function getBranchOffset() { return this[prev_offset] + this[prev_size] })
+    Object.defineProperty(object, size, { get: function getActiveBranchSize() {
       var active = activeBranches.call(this)[0]
       return (active === undefined) ? 0 : this['__size_' + branchname + active]
     }})
@@ -549,8 +549,8 @@
 
   function defineDummyAccessor(object, index) {
     Object.defineProperty(object, index, {
-      get: function() { return this.getItem(index) },
-      set: function(value) { this.setItem(index, value) }
+      get: function getItemX() { return this.getItem(index) },
+      set: function setItemX(value) { this.setItem(index, value) }
     })
   }
 
